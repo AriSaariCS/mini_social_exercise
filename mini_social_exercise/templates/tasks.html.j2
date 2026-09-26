@@ -1,0 +1,66 @@
+{% extends "base.html.j2" %}
+{% block content %}
+<div class="container my-4" style="max-width: 800px;">
+    <h2>Community Task Board</h2>
+    
+    <!-- My Watchlist Section -->
+    {% if session.get('user_id') %}
+    <div class="card mb-4 border-primary">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">⭐ My Watchlist</h5>
+        </div>
+        <ul class="list-group list-group-flush">
+            {% for item in watchlist %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>{{ item.title }}</strong>
+                        <p class="mb-0 text-muted small">{{ item.description }}</p>
+                    </div>
+                    <form action="{{ url_for('watch_task', task_id=item.id) }}" method="POST">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">Unwatch</button>
+                    </form>
+                </li>
+            {% else %}
+                <li class="list-group-item text-muted small">You are not watching any tasks yet.</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <!-- Open Tasks Section -->
+    <h4>Open Tasks</h4>
+    <div class="list-group">
+        {% for task in tasks %}
+        <div class="list-group-item mb-3 p-3 border rounded">
+            <h5>{{ task.title }}</h5>
+            <p class="text-muted small mb-2">{{ task.description }}</p>
+            
+            {% if task.assigned_to %}
+                <div class="alert alert-warning py-1 px-2 mb-2 small">
+                    🎯 Direct Request for: <strong>@{{ task.assigned_to }}</strong>
+                </div>
+            {% endif %}
+
+            <div class="d-flex gap-2 align-items-center mt-3">
+                <!-- Toggle Watchlist Button (Visible to everyone) -->
+                <form action="{{ url_for('watch_task', task_id=task.id) }}" method="POST">
+                    <button type="submit" class="btn btn-sm btn-outline-primary">⭐ Toggle Watchlist</button>
+                </form>
+                
+                <!-- Direct Ask Form (Visible only when logged in) -->
+                {% if session.get('user_id') %}
+                <form action="{{ url_for('request_contributor', task_id=task.id) }}" method="POST" class="d-flex gap-1 ms-auto">
+                    <input type="text" name="username" class="form-control form-control-sm" placeholder="Ask username..." required>
+                    <button type="submit" class="btn btn-sm btn-success">Direct Ask</button>
+                </form>
+                {% else %}
+                <small class="text-muted ms-auto">Log in to send direct requests.</small>
+                {% endif %}
+            </div>
+        </div>
+        {% else %}
+        <p class="text-muted">No open tasks available.</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
