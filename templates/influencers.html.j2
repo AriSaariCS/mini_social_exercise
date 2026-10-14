@@ -1,0 +1,54 @@
+{% extends "base.html.j2" %}
+{% block content %}
+<div class="container my-4" style="max-width: 800px;">
+    <h2>🌟 Top Connectors</h2>
+    <p class="text-muted small">
+        Instead of asking members at random to recruit friends, we find the members whose
+        posts spread furthest through the follow network and ask <em>them</em> first.
+        We simulate how a shared post cascades from follower to follower (each follower acts on it with
+        probability {{ probability }}) and greedily pick the members who add the most new reach
+        (Kempe, Kleinberg &amp; Tardos, 2003).
+    </p>
+
+    <div class="card mb-4">
+        <div class="card-header">Who reaches the most members ({{ analysis.k }} picked from {{ analysis.members }} members, {{ analysis.edges }} follow links)</div>
+        <table class="table mb-0">
+            <thead><tr><th>#</th><th>Member</th><th>Followers</th><th>Extra members reached</th></tr></thead>
+            <tbody>
+            {% for i in analysis.influencers %}
+                <tr>
+                    <td>{{ i.rank }}</td>
+                    <td><a href="/u/{{ i.username }}">@{{ i.username }}</a></td>
+                    <td>{{ i.followers }}</td>
+                    <td>{{ i.marginal_reach }}</td>
+                </tr>
+            {% else %}
+                <tr><td colspan="4" class="text-muted">Not enough follow connections yet.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card mb-4">
+        <div class="card-header">Does picking influencers beat picking at random?</div>
+        <div class="card-body">
+            <p class="small text-muted mb-2">Expected members reached when the same number ({{ analysis.k }}) of members are asked to share:</p>
+            <ul class="mb-0">
+                <li><strong>Greedy influence maximization:</strong> {{ analysis.greedy_spread }} members</li>
+                <li><strong>Most-followed members:</strong> {{ analysis.degree_spread }} members</li>
+                <li><strong>Random members:</strong> {{ analysis.random_spread }} members</li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header">Recruiting results so far</div>
+        <div class="card-body">
+            <p class="mb-1">Top connectors recruited <strong>{{ stats.influencer_total }}</strong> members
+                ({{ stats.influencer_avg }} each on average).</p>
+            <p class="mb-0">Everyone else recruited <strong>{{ stats.other_total }}</strong> members
+                ({{ stats.other_avg }} each on average).</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

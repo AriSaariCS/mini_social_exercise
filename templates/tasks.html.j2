@@ -1,0 +1,175 @@
+{% extends "base.html.j2" %}
+{% block content %}
+<div class="container my-4" style="max-width: 800px;">
+    <h2>Community Task Board</h2>
+
+    <!-- Group Identity Banner (Design Claim 4) -->
+    <div class="card mb-4 bg-light">
+        <div class="card-body d-flex justify-content-between align-items-center flex-wrap gap-2">
+            <div>
+                <h5 class="mb-1">🛠️ {{ community_name }}</h5>
+                <p class="mb-0 text-muted small">A community of people helping each other get things done.</p>
+            </div>
+            <div class="text-end">
+                {% if my_membership %}
+                    <div class="mb-1">
+                        <span class="badge bg-dark">{{ my_membership.title }}</span>
+                        {% for badge in my_category_badges %}
+                            <span class="badge bg-info text-dark">{{ badge.title }}</span>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+                <small class="text-muted">{{ member_count }} member{{ 's' if member_count != 1 else '' }}</small>
+            </div>
+        </div>
+    </div>
+
+    {% if session.get('user_id') %}
+
+    <!-- Incoming Direct-Ask Requests: PRIVATE to the recipient until acted on -->
+    {% if incoming_requests %}
+    <div class="card mb-4 border-success">
+        <div class="card-header bg-success text-white">
+            <h5 class="mb-0">📨 Requests Waiting on You ({{ incoming_requests|length }})</h5>
+        </div>
+        <ul class="list-group list-group-flush">
+            {% for req in incoming_requests %}
+                <li class="list-group-item">
+                    <div class="mb-2">
+                        <strong>@{{ req.from_username }}</strong>
+                        {% if req.from_user_title %}<span class="badge bg-dark">{{ req.from_user_title }}</span>{% endif %}
+                        {% if req.from_user_category_title %}<span class="badge bg-info text-dark">{{ req.from_user_category_title }}</span>{% endif %}
+                        asked you to help with
+                        <strong>{{ req.title }}</strong>
+                        <p class="mb-0 text-muted small">{{ req.description }}</p>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <form action="{{ url_for('respond_to_request', request_id=req.request_id) }}" method="POST">
+                            <input type="hidden" name="decision" value="accept">
+                            <button type="submit" class="btn btn-sm btn-success">Accept</button>
+                        </form>
+                        <form action="{{ url_for('respond_to_request', request_id=req.request_id) }}" method="POST">
+                            <input type="hidden" name="decision" value="decline">
+                            <button type="submit" class="btn btn-sm btn-outline-secondary">Decline</button>
+                        </form>
+                    </div>
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <!-- My Watchlist Section -->
+    <div class="card mb-4 border-primary">
+        <div class="card-header bg-primary text-white">
+            <h5 class="mb-0">⭐ My Watchlist</h5>
+        </div>
+        <ul class="list-group list-group-flush">
+            {% for item in watchlist %}
+                <li class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>{{ item.title }}</strong>
+                        <p class="mb-0 text-muted small">{{ item.description }}</p>
+                    </div>
+                    <form action="{{ url_for('watch_task', task_id=item.id) }}" method="POST">
+                        <button type="submit" class="btn btn-sm btn-outline-danger">Unwatch</button>
+                    </form>
+                </li>
+            {% else %}
+                <li class="list-group-item text-muted small">You are not watching any tasks yet.</li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <!-- New Task Form -->
+    {% if session.get('user_id') %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="mb-0">➕ Post a New Task</h5>
+        </div>
+        <div class="card-body">
+            <form action="{{ url_for('create_task') }}" method="POST">
+                <div class="mb-2">
+                    <input type="text" name="title" class="form-control" placeholder="Task title" required maxlength="200">
+                </div>
+                <div class="mb-2">
+                    <textarea name="description" class="form-control" placeholder="Describe what needs doing..." rows="2" required></textarea>
+                </div>
+                <div class="mb-2">
+                    <input type="text" name="category" class="form-control" placeholder="Category (e.g. DIY, Coding, Errands)" maxlength="50">
+                </div>
+                <button type="submit" class="btn btn-sm btn-primary">Post Task</button>
+            </form>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Open Tasks Section -->
+    <h4>Open Tasks</h4>
+    <div class="list-group">
+        {% for task in tasks %}
+        <div class="list-group-item mb-3 p-3 border rounded">
+            <div class="d-flex justify-content-between align-items-start">
+                <h5>{{ task.title }}</h5>
+                {% if task.status == 'assigned' %}
+                    <span class="badge bg-secondary">Assigned</span>
+                {% else %}
+                    <span class="badge bg-light text-dark border">Open</span>
+                {% endif %}
+            </div>
+            <p class="text-muted small mb-2">{{ task.description }}</p>
+
+            {% if task.status == 'assigned' and task.assigned_to %}
+                <div class="alert alert-secondary py-1 px-2 mb-2 small">
+                    ✅ Taken by: <strong>@{{ task.assigned_to }}</strong>
+                    {% if task.assigned_to_title %}<span class="badge bg-dark">{{ task.assigned_to_title }}</span>{% endif %}
+                    {% if task.assigned_to_category_title %}<span class="badge bg-info text-dark">{{ task.assigned_to_category_title }}</span>{% endif %}
+                </div>
+            {% endif %}
+
+            <div class="d-flex gap-2 align-items-center mt-3">
+                <!-- Toggle Watchlist Button (Visible to everyone logged in) -->
+                {% if session.get('user_id') %}
+                <form action="{{ url_for('watch_task', task_id=task.id) }}" method="POST">
+                    <button type="submit" class="btn btn-sm btn-outline-primary">⭐ Toggle Watchlist</button>
+                </form>
+                {% endif %}
+
+                <!-- Direct Ask Form: only shown for open tasks, and only once per task -->
+                {% if session.get('user_id') and task.status == 'open' %}
+                    {% if task.id in my_pending_task_ids %}
+                        <small class="text-muted ms-auto">Request sent — waiting for a response.</small>
+                    {% else %}
+                    {% set candidates = suggested_candidates.get(task.id, []) %}
+                    <form action="{{ url_for('request_contributor', task_id=task.id) }}" method="POST" class="d-flex flex-column gap-1 ms-auto" style="min-width: 240px;">
+                        <div class="d-flex gap-1">
+                            <input type="text" name="username" list="candidates-{{ task.id }}"
+                                   class="form-control form-control-sm" placeholder="Ask username..." required>
+                            <button type="submit" class="btn btn-sm btn-success">Direct Ask</button>
+                        </div>
+                        {% if candidates %}
+                        <datalist id="candidates-{{ task.id }}">
+                            {% for name in candidates %}<option value="{{ name }}">{% endfor %}
+                        </datalist>
+                        <small class="text-muted">
+                            Suggested:
+                            {% for name in candidates %}
+                                <a href="#" class="me-1"
+                                   onclick="this.closest('form').querySelector('input[name=username]').value='{{ name }}'; return false;">@{{ name }}</a>
+                            {% endfor %}
+                        </small>
+                        {% endif %}
+                    </form>
+                    {% endif %}
+                {% elif not session.get('user_id') %}
+                <small class="text-muted ms-auto">Log in to send direct requests.</small>
+                {% endif %}
+            </div>
+        </div>
+        {% else %}
+        <p class="text-muted">No open tasks available.</p>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

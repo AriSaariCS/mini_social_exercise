@@ -46,6 +46,17 @@
         <li class="nav-item">
           <a class="nav-link" href="/privacy">Privacy</a>
         </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_for('task_list') }}">Tasks</a>
+        </li>
+        {% if session.get('user_id') %}
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_for('offtopic_chat') }}">Chat</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" href="{{ url_for('invite') }}">Invite</a>
+        </li>
+        {% endif %}
 
         <!-- Check if user is logged in -->
         {% if session.get('user_id') %}
@@ -130,4 +141,3 @@
         });
     });
 </script>
-

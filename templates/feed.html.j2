@@ -22,6 +22,18 @@
 </div>
 {% endif %}
 
+{% if influencer_info %}
+<div class="col-md-8 mx-auto mb-4">
+  <div class="alert alert-warning mb-0 d-flex justify-content-between align-items-center flex-wrap gap-2">
+    <span>
+      🌟 <strong>You're one of the community's top connectors</strong> (#{{ influencer_info.rank }}).
+      Your posts could reach about {{ influencer_info.marginal_reach }} members &mdash; invite your friends to join!
+    </span>
+    <a href="{{ url_for('invite') }}" class="btn btn-sm btn-warning">Invite friends</a>
+  </div>
+</div>
+{% endif %}
+
 <h2 class="text-center border-bottom pb-2 mb-4"><span>Posts</span></h2>
 
 <div class="mb-4 text-center">
@@ -56,8 +68,10 @@
           {% if entry.followed_poster %}
           <a href="/u/{{ entry.post.user_id }}">{{ user_display(entry.post.username) }}<span class="text-success p-1" data-toggle="tooltip" data-placement="top" title="You are following this user"> ✓ </span>
 </a>
+          {% if entry.post.member_title %}<span class="badge bg-dark align-middle">{{ entry.post.member_title }}</span>{% endif %}
           {% else %}
           <a href="/u/{{ entry.post.user_id }}">{{ user_display(entry.post.username) }} </a>
+          {% if entry.post.member_title %}<span class="badge bg-dark align-middle">{{ entry.post.member_title }}</span>{% endif %}
           {% endif %}
         </h3>
 
@@ -123,6 +137,21 @@
           </ul>
         </div>
         {% endif %}
+
+        <!-- Share (Design Claim 4, Ch.5): one click to email / Twitter / Facebook / copy link -->
+        <div class="dropdown ms-auto">
+          <button class="btn btn-sm btn-light text-dark" type="button" data-bs-toggle="dropdown" aria-expanded="false" title="Share this post with friends">
+            Share ↗
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li><a class="dropdown-item" target="_blank" rel="noopener" href="{{ url_for('share_post', post_id=entry.post.id, channel='email') }}">✉️ Email</a></li>
+            <li><a class="dropdown-item" target="_blank" rel="noopener" href="{{ url_for('share_post', post_id=entry.post.id, channel='twitter') }}">🐦 Twitter</a></li>
+            <li><a class="dropdown-item" target="_blank" rel="noopener" href="{{ url_for('share_post', post_id=entry.post.id, channel='facebook') }}">📘 Facebook</a></li>
+            <li><a class="dropdown-item" target="_blank" rel="noopener" href="{{ url_for('share_post', post_id=entry.post.id, channel='whatsapp') }}">💬 WhatsApp</a></li>
+            <li><a class="dropdown-item" target="_blank" rel="noopener" onclick="copyShareLink(this, '{{ url_for('post_detail', post_id=entry.post.id, ref=session.get('username'), _external=True) }}')" href="{{ url_for('share_post', post_id=entry.post.id, channel='instagram') }}">📸 Instagram (copies link)</a></li>
+            <li><button type="button" class="dropdown-item" onclick="copyShareLink(this, '{{ url_for('post_detail', post_id=entry.post.id, ref=session.get('username'), _external=True) }}')">🔗 Copy link</button></li>
+          </ul>
+        </div>
       </div>
 
 
@@ -139,6 +168,7 @@
           <div class="d-flex justify-content-between">
             <div>
               <strong><a href="/u/{{ comment.username }}">{{ user_display(comment.username) }}</a></strong>
+              {% if comment.member_title %}<span class="badge bg-dark">{{ comment.member_title }}</span>{% endif %}
               <p class="mb-0">{{ comment.content }}</p>
             </div>
             
@@ -200,4 +230,12 @@
       Next &raquo;
     </a>
   </div>
+<script>
+  // Copies a post link (it carries ?ref=<your username> so friends who join are credited to you)
+  function copyShareLink(btn, url) {
+    const done = () => { const old = btn.textContent; btn.textContent = '✅ Copied!'; setTimeout(() => btn.textContent = old, 1500); };
+    if (navigator.clipboard) { navigator.clipboard.writeText(url).then(done); }
+    else { window.prompt('Copy this link:', url); }
+  }
+</script>
 {% endblock %}

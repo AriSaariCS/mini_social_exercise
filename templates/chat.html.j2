@@ -1,0 +1,57 @@
+{% extends "base.html.j2" %}
+{% block content %}
+<div class="container my-4" style="max-width: 700px;">
+    <h2>💬 Off-Topic Chat</h2>
+    <p class="text-muted small mb-4">
+        The {{ community_name }} water cooler — nothing here has to be about tasks.
+        Say hi, share something unrelated, just hang out.
+    </p>
+
+    {% if session.get('user_id') %}
+        <div class="card mb-4">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <span>Personalized filtering</span>
+                <form action="{{ url_for('toggle_offtopic_visibility') }}" method="POST">
+                    <button type="submit" class="btn btn-sm btn-outline-secondary">
+                        {{ 'Hide this for me' if show_offtopic else 'Show this for me' }}
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        {% if show_offtopic %}
+            <div class="card mb-4">
+                <div class="card-body">
+                    <form action="{{ url_for('post_offtopic') }}" method="POST" class="d-flex gap-2">
+                        <input type="text" name="content" class="form-control"
+                               placeholder="Say something..." required maxlength="500">
+                        <button type="submit" class="btn btn-secondary">Post</button>
+                    </form>
+                </div>
+            </div>
+
+            <ul class="list-group list-group-flush">
+                {% for msg in offtopic_messages %}
+                    <li class="list-group-item">
+                        <strong>@{{ msg.username }}</strong>
+                        {% if msg.user_title %}<span class="badge bg-dark">{{ msg.user_title }}</span>{% endif %}
+                        <span class="text-muted small float-end">{{ msg.created_at }}</span>
+                        <p class="mb-0 mt-1">{{ msg.content }}</p>
+                    </li>
+                {% else %}
+                    <li class="list-group-item text-muted">No chatter yet. Say hi!</li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <div class="card">
+                <div class="card-body text-muted">
+                    You've hidden off-topic chatter for yourself. It's still happening —
+                    click "Show this for me" above to bring it back into view.
+                </div>
+            </div>
+        {% endif %}
+    {% else %}
+        <p class="text-muted">Log in to join the chat.</p>
+    {% endif %}
+</div>
+{% endblock %}
