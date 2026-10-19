@@ -7,6 +7,14 @@
         Say hi, share something unrelated, just hang out.
     </p>
 
+    {% if moved_notice %}
+        <div class="alert alert-info">
+            Your post was moved here from the feed because {{ moved_notice.reasons }}.
+            Nothing was deleted. <a href="{{ url_for('review_room') }}">See all moved posts</a>
+            or read the <a href="{{ url_for('rules') }}">rules</a>.
+        </div>
+    {% endif %}
+
     {% if session.get('user_id') %}
         <div class="card mb-4">
             <div class="card-header d-flex justify-content-between align-items-center">

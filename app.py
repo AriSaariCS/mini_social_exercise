@@ -140,12 +140,11 @@ def init_task_db():
             FOREIGN KEY (to_user_id) REFERENCES users (id) ON DELETE CASCADE
         )
     ''')
-    # Design Claim 4: shared group identity 
-    # Giving people a name/indicator that marks them as part of a specific community.
+    # --- Design Claim 4: shared group identity ---------------------------
+    # Giving people a name/indicator that marks them as part of this
     # specific community (rather than just an anonymous task-doer) is meant
     # to increase identity-based commitment to the board itself, not just
     # to the individual task they happen to be working on.
-
     db.execute('''
         CREATE TABLE IF NOT EXISTS task_board_members (
             user_id INTEGER PRIMARY KEY,
@@ -154,11 +153,10 @@ def init_task_db():
             FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
         )
     ''')
-    
-    # Create a "category". Badge for the "Fixer" for example. Identity should track
-    # to topic they care about.
-
-   
+    # Layered on top of the platform-wide "Fixer" identity: a badge scoped
+    # to the specific domain (category) someone actually participates in,
+    # e.g. "DIY Crew" or "Code Wranglers" -- so identity tracks the topic
+    # they care about, not just the fact that they used this website.
     db.execute('''
         CREATE TABLE IF NOT EXISTS task_category_members (
             user_id INTEGER NOT NULL,
@@ -169,7 +167,7 @@ def init_task_db():
             FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
         )
     ''')
-    # Design Claim 25: off-topic talk + personalized filtering 
+    # --- Design Claim 25: off-topic talk + personalized filtering --------
     # Off-topic chatter isn't removed for everyone (that would lose the
     # bonding/identity benefit entirely) and it isn't forced on everyone
     # either (that would annoy people who only want the task list). Instead
@@ -186,7 +184,7 @@ def init_task_db():
     db.commit()
 
     # task_board_members may already exist from before this column was
-    # added; ALTER TABLE ... ADD COLUMN is proper way to extend it
+    # added; ALTER TABLE ... ADD COLUMN is the safe way to extend it
     # in place without losing existing membership rows.
     try:
         db.execute('''
@@ -198,12 +196,12 @@ def init_task_db():
         pass  # column already exists
 
 
-# The shared name for the group  this is the "indicator" from Design 
+# The shared name for the group -- this is the "indicator" from Design
 # Claim 4. Everyone who engages with the board is a "Fixer" in "The Fixers,"
 # not just a person who happened to post or accept one task.
-
 COMMUNITY_NAME = "The Fixers"
 MEMBER_TITLE = "Fixer"
+
 
 def get_or_create_member(user_id):
     """Ensures the user carries the community's membership badge.
@@ -226,8 +224,9 @@ def get_or_create_member(user_id):
     return new_member, True
 
 
-# Category titles 
-
+# Known categories get a hand-picked group name; anything else falls back
+# to "<Category> Crew" so free-typed categories still get a real identity
+# instead of silently having none.
 CATEGORY_TITLES = {
     'diy': 'DIY Crew',
     'coding': 'Code Wranglers',
@@ -250,8 +249,8 @@ def get_or_create_category_member(user_id, category):
     """Grants a category-specific badge the first time a user actively
     participates (posts, asks, or accepts) within that category. This is
     layered on top of the platform-wide 'Fixer' badge, not a replacement
-    for it someone can be a Fixer and a DIY Crew member and a Code
-    Wrangler all at once. Note to myself...Maybe implementation could be based on completed tasks or based on interest?
+    for it -- someone can be a Fixer and a DIY Crew member and a Code
+    Wrangler all at once.
     """
     existing = query_db('''
         SELECT * FROM task_category_members WHERE user_id = ? AND category = ?
@@ -472,12 +471,14 @@ def task_list():
         ''', [user_id] + task_ids) or []
         my_pending_task_ids = {r['task_id'] for r in rows}
 
-    # Design Claim 3: target people who are interested and able
+    # --- Design Claim 3: target people who are interested & able --------
     # Instead of the asker having to guess a username at random, suggest
     # candidates who've already shown a signal of interest/ability for
-    # THIS task: people watching it strongest signal/interested in
-    # this exact task, then people holding this task's category badge
-    # interested/able in this domain generally. 
+    # THIS task: people watching it (strongest signal -- interested in
+    # this exact task), then people holding this task's category badge
+    # (interested/able in this domain generally). Personal @username
+    # addressing (already in request_contributor) covers the other half
+    # of the claim -- being asked by name speeds up response.
     suggested_candidates = {}
     if user_id and open_tasks:
         for t in open_tasks:
@@ -516,8 +517,8 @@ def task_list():
             ''', (user_id,)) or []
 
     # Incoming direct-ask requests addressed to ME, awaiting my response.
-    # These are privatemonly the recipient sees them here, not the
-    # whole board unlike simply broadcasting every ask publicly.
+    # These are private -- only the recipient sees them here, not the
+    # whole board -- unlike simply broadcasting every ask publicly.
     incoming_requests = []
     if user_id:
         incoming_requests = query_db('''
@@ -537,7 +538,7 @@ def task_list():
             ''', (user_id,)) or []
 
     # All of the current user's category badges, oldest first, for the
-    # identity banner for example Fixer + DIY Crew + Code Wrangler.
+    # identity banner -- e.g. Fixer + DIY Crew + Code Wrangler.
     my_category_badges = []
     if user_id:
         my_category_badges = query_db('''
@@ -787,11 +788,24 @@ def offtopic_chat():
             LIMIT 50
         ''') or []
 
+    # Chat messages are moderated when shown, like posts and comments, because
+    # posts redirected from the feed now land here.
+    offtopic_messages = [dict(m, content=moderate_content(m['content'])[0]) for m in offtopic_messages]
+
+    # If the author was just sent here from the feed, tell them why.
+    moved_notice = None
+    moved_id = request.args.get('moved', type=int)
+    if user_id and moved_id:
+        init_redirect_db()
+        moved_notice = query_db("SELECT reasons FROM redirected_posts WHERE id = ? AND user_id = ? AND destination = 'chat'",
+                                (moved_id, user_id), one=True)
+
     return render_template('chat.html.j2',
                            community_name=COMMUNITY_NAME,
                            my_membership=my_membership,
                            show_offtopic=show_offtopic,
-                           offtopic_messages=offtopic_messages)
+                           offtopic_messages=offtopic_messages,
+                           moved_notice=moved_notice)
 
 
 @app.route('/chat/post', methods=['POST'])
@@ -812,6 +826,13 @@ def post_offtopic():
     if not content:
         flash('Say something first!', 'warning')
         return redirect(url_for('offtopic_chat'))
+
+    # Severe content is held in the author's Review Room instead of being posted
+    # or thrown away (same redirect-instead-of-remove approach as the feed).
+    init_redirect_db()
+    _, score = moderate_content(content)
+    if score >= HOLD_FOR_REVIEW_SCORE:
+        return redirect_after_placement('review', record_redirect(user_id, content, score, 'review', 'held'))
 
     get_or_create_member(user_id)  # chatting is community participation too
     db = get_db()
@@ -857,21 +878,14 @@ def add_post():
     # Get content from the submitted form
     content = request.form.get('content')
 
-    # Pass the user's content through the moderation function
-    moderated_content = content
-
     # Basic validation to ensure post is not empty
-    if moderated_content and moderated_content.strip():
-        db = get_db()
-        db.execute('INSERT INTO posts (user_id, content) VALUES (?, ?)',
-                   (user_id, moderated_content))
-        db.commit()
-        flash('Your post was successfully created!', 'success')
-    else:
-        # This will catch empty posts or posts that were fully censored
-        flash('Post cannot be empty or was fully censored.', 'warning')
+    if content and content.strip():
+        # Chapter 4 design claim: a flagged post is REDIRECTED (to Chat or the
+        # Review Room) instead of removed. place_post decides where it belongs.
+        destination, redirect_id = place_post(user_id, content)
+        return redirect_after_placement(destination, redirect_id)
 
-    # Redirect back to the main feed to see the new post
+    flash('Post cannot be empty.', 'warning')
     return redirect(url_for('feed'))
     
     
@@ -1798,13 +1812,20 @@ def recommend(user_id, filter_following):
 
     return sorted(result, key=lambda p: p['created_at'], reverse=True)
 
-
+# =====================================================================
 # CHAPTER 5 (DEALING WITH NEWCOMERS): VIRAL SHARING + INFLUENCER RECRUITING
-
+# =====================================================================
 # Design Claim 4 (Ch.5): making it easy to share community content with
-# friends (email / Twitter / Facebook / copy-link) raises the community's
-# visibility among members' friends and so the chance they join.
-#  
+#   friends (email / Twitter / Facebook / copy-link) raises the community's
+#   visibility among members' friends and so the chance they join.
+#   -> share buttons on every post, a personal invite page, and referral
+#      tracking (who recruited whom) via a ?ref=<username> link.
+# Design Claim 5 (Ch.5): identifying the MOST INFLUENTIAL members and
+#   encouraging them to recruit beats soliciting referrals at random.
+#   -> influence maximization on the follow graph (greedy algorithm of
+#      Kempe, Kleinberg & Tardos 2003) + a nudge to those members to invite
+#      friends, + a page comparing greedy vs. degree vs. random selection.
+# =====================================================================
 
 INFLUENCER_COUNT = 10           # how many "top connectors" we identify
 INFLUENCE_PROBABILITY = 0.15    # chance a follower acts on what a followed user shares
@@ -1955,9 +1976,10 @@ def invite():
                            share_count=shares['c'] if shares else 0,
                            my_influence=my_influence)
 
-# Coding assignment 3
-# Claim 5: finding the most influential members
 
+# ---------------------------------------------------------------------
+# Claim 5: finding the most influential members
+# ---------------------------------------------------------------------
 def build_influence_graph():
     """Directed graph from the follow relationships.
 
@@ -2096,6 +2118,212 @@ def influencers():
     }
     return render_template('influencers.html.j2', analysis=analysis, stats=stats,
                            probability=INFLUENCE_PROBABILITY)
+
+
+# =====================================================================
+# CHAPTER 4 (REGULATING BEHAVIOUR): REDIRECT INSTEAD OF REMOVE
+# =====================================================================
+# Design Claim: redirecting inappropriate posts to other places creates
+#   less resistance than removing them.
+#   -> a flagged post is no longer rejected or silently deleted. It is moved to
+#      a place where it fits better (the opt-in Chat, or a private Review Room),
+#      the author is told where it went and why, and can edit and resubmit it.
+#      Nothing is deleted unless the author or an admin chooses to.
+# Where a post goes depends on its moderation score (see moderate_content):
+#   below 1.0  -> published in the feed as usual
+#   1.0 - 4.9  -> moved to Chat (members can hide Chat, so nobody is forced to see it)
+#   5.0 and up -> held in the author's private Review Room (Tier 1 / Tier 2 content)
+# =====================================================================
+
+REDIRECT_TO_CHAT_SCORE = 1.0
+HOLD_FOR_REVIEW_SCORE = 5.0
+
+
+def init_redirect_db():
+    """One row for every post that was moved somewhere else instead of removed."""
+    db = get_db()
+    db.execute('''
+        CREATE TABLE IF NOT EXISTS redirected_posts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            content TEXT NOT NULL,                -- the author's original text, kept so they can edit it
+            score REAL NOT NULL,
+            reasons TEXT NOT NULL,                -- plain-language reasons, joined with "; "
+            destination TEXT NOT NULL,            -- 'chat' or 'review'
+            status TEXT NOT NULL,                 -- moved / held / resubmitted / released / deleted
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            resolved_at TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+        )
+    ''')
+    db.commit()
+
+
+def moderation_reasons(content):
+    """Plain-language reasons a text was flagged, so the author is told WHY.
+    It never quotes the offending words back."""
+    content = content or ''
+
+    def found(term):
+        return re.search(r'(?<!\w)' + re.escape(term) + r'(?!\w)', content, re.IGNORECASE)
+
+    reasons = []
+    if any(found(w) for w in TIER1_WORDS):
+        reasons.append('it contains language that is not allowed on Mini Social')
+    if any(found(p) for p in TIER2_PHRASES):
+        reasons.append('it looks like spam or a scam')
+    if any(found(w) for w in TIER3_WORDS):
+        reasons.append('it contains mild profanity')
+    if LINK_PATTERN.search(content):
+        reasons.append('it contains an external link')
+    letters = [c for c in content if c.isalpha()]
+    if len(letters) > 15 and sum(c.isupper() for c in letters) / len(letters) > 0.7:
+        reasons.append('it is written mostly in capital letters')
+    return reasons or ['it breaks the community rules']
+
+
+def record_redirect(user_id, content, score, destination, status):
+    """Logs a redirect and returns its id (used to show the author an explanation)."""
+    cur = get_db().execute(
+        'INSERT INTO redirected_posts (user_id, content, score, reasons, destination, status) '
+        'VALUES (?, ?, ?, ?, ?, ?)',
+        (user_id, content, score, '; '.join(moderation_reasons(content)), destination, status))
+    get_db().commit()
+    return cur.lastrowid
+
+
+def place_post(user_id, content):
+    """Decides where a new post belongs instead of rejecting it.
+
+    Returns (destination, redirect_id): destination is 'feed', 'chat' or 'review';
+    redirect_id is None when the post was simply published.
+    """
+    init_task_db()       # creates the chat table
+    init_redirect_db()
+    _, score = moderate_content(content)
+    db = get_db()
+
+    if score < REDIRECT_TO_CHAT_SCORE:
+        db.execute('INSERT INTO posts (user_id, content) VALUES (?, ?)', (user_id, content))
+        db.commit()
+        return 'feed', None
+
+    if score >= HOLD_FOR_REVIEW_SCORE:
+        return 'review', record_redirect(user_id, content, score, 'review', 'held')
+
+    get_or_create_member(user_id)       # posting in Chat is community participation too
+    db.execute('INSERT INTO task_board_chatter (user_id, content) VALUES (?, ?)', (user_id, content))
+    db.commit()
+    return 'chat', record_redirect(user_id, content, score, 'chat', 'moved')
+
+
+def redirect_after_placement(destination, redirect_id):
+    """Sends the author to the place their post ended up, with an explanation."""
+    if destination == 'chat':
+        flash('Your post was moved to Chat instead of the feed. Nothing was deleted.', 'info')
+        return redirect(url_for('offtopic_chat', moved=redirect_id))
+    if destination == 'review':
+        flash('Your post is waiting in your Review Room. Nothing was deleted.', 'info')
+        return redirect(url_for('review_room', new=redirect_id))
+    flash('Your post was successfully created!', 'success')
+    return redirect(url_for('feed'))
+
+
+@app.route('/review')
+def review_room():
+    """The Review Room: posts that were held or moved, why, and what you can do about it.
+    Admins also see every held post so they can release or delete it."""
+    user_id = session.get('user_id')
+    if not user_id:
+        flash('Please log in to see your moved posts.', 'danger')
+        return redirect(url_for('login'))
+    init_redirect_db()
+
+    mine = query_db('''
+        SELECT * FROM redirected_posts
+        WHERE user_id = ? AND status != 'deleted'
+        ORDER BY created_at DESC LIMIT 50
+    ''', (user_id,)) or []
+    held = [m for m in mine if m['status'] == 'held']
+    history = [m for m in mine if m['status'] != 'held']
+
+    all_held = []
+    if session.get('username') == 'admin':
+        all_held = query_db('''
+            SELECT r.*, u.username FROM redirected_posts r JOIN users u ON r.user_id = u.id
+            WHERE r.status = 'held' ORDER BY r.created_at DESC
+        ''') or []
+
+    return render_template('review.html.j2', held=held, history=history, all_held=all_held,
+                           new_id=request.args.get('new', type=int))
+
+
+@app.route('/review/<int:item_id>/resubmit', methods=['POST'])
+def review_resubmit(item_id):
+    """The author edits a held post and tries again. It goes through the same
+    check, so a cleaned-up post is published and one that is still flagged is
+    placed again, with fresh reasons."""
+    user_id = session.get('user_id')
+    if not user_id:
+        flash('Please log in.', 'danger')
+        return redirect(url_for('login'))
+    init_redirect_db()
+    item = query_db("SELECT * FROM redirected_posts WHERE id = ? AND user_id = ? AND status = 'held'",
+                    (item_id, user_id), one=True)
+    if not item:
+        flash('That post is not waiting for review.', 'warning')
+        return redirect(url_for('review_room'))
+    content = (request.form.get('content') or '').strip()
+    if not content:
+        flash('Please write something before resubmitting.', 'warning')
+        return redirect(url_for('review_room'))
+
+    destination, redirect_id = place_post(user_id, content)
+    get_db().execute("UPDATE redirected_posts SET status = 'resubmitted', resolved_at = CURRENT_TIMESTAMP WHERE id = ?",
+                     (item_id,))
+    get_db().commit()
+    return redirect_after_placement(destination, redirect_id)
+
+
+@app.route('/review/<int:item_id>/delete', methods=['POST'])
+def review_delete(item_id):
+    """Only the author, or an admin, can remove a held post for good."""
+    user_id = session.get('user_id')
+    if not user_id:
+        flash('Please log in.', 'danger')
+        return redirect(url_for('login'))
+    init_redirect_db()
+    item = query_db("SELECT * FROM redirected_posts WHERE id = ? AND status = 'held'", (item_id,), one=True)
+    if not item or (item['user_id'] != user_id and session.get('username') != 'admin'):
+        flash('That post is not waiting for review.', 'warning')
+        return redirect(url_for('review_room'))
+    get_db().execute("UPDATE redirected_posts SET status = 'deleted', resolved_at = CURRENT_TIMESTAMP WHERE id = ?",
+                     (item_id,))
+    get_db().commit()
+    flash('The post was deleted.', 'success')
+    return redirect(url_for('review_room'))
+
+
+@app.route('/review/<int:item_id>/release', methods=['POST'])
+def review_release(item_id):
+    """Admin only: move a held post to Chat. Chat messages are moderated when
+    shown, so a released post is still masked or replaced as the rules require."""
+    if session.get('username') != 'admin':
+        flash('You do not have permission to perform this action.', 'danger')
+        return redirect(url_for('feed'))
+    init_task_db()
+    init_redirect_db()
+    item = query_db("SELECT * FROM redirected_posts WHERE id = ? AND status = 'held'", (item_id,), one=True)
+    if not item:
+        flash('That post is not waiting for review.', 'warning')
+        return redirect(url_for('review_room'))
+    db = get_db()
+    db.execute('INSERT INTO task_board_chatter (user_id, content) VALUES (?, ?)', (item['user_id'], item['content']))
+    db.execute("UPDATE redirected_posts SET status = 'released', resolved_at = CURRENT_TIMESTAMP WHERE id = ?",
+               (item_id,))
+    db.commit()
+    flash('The post was released to Chat.', 'success')
+    return redirect(url_for('review_room'))
 
 
 if __name__ == '__main__':

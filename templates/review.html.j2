@@ -1,0 +1,69 @@
+{% extends "base.html.j2" %}
+{% block content %}
+<div class="container my-4" style="max-width: 760px;">
+    <h2>📬 Moved Posts</h2>
+    <p class="text-muted small">
+        When a post doesn't fit the feed, we move it somewhere better instead of deleting it.
+        Mild cases go to <a href="{{ url_for('offtopic_chat') }}">Chat</a>, which members can hide.
+        Serious cases wait here, only visible to you, until you edit them. See the
+        <a href="{{ url_for('rules') }}">rules</a> for what belongs where.
+    </p>
+
+    <h4>Waiting for you</h4>
+    {% for item in held %}
+    <div class="card mb-3 {{ 'border-warning' if item.id == new_id }}">
+        <div class="card-body">
+            <p class="small mb-2">
+                {% if item.id == new_id %}<span class="badge bg-warning text-dark">New</span>{% endif %}
+                This post wasn't published because {{ item.reasons }}. It hasn't been deleted.
+            </p>
+            <form action="{{ url_for('review_resubmit', item_id=item.id) }}" method="POST">
+                <textarea name="content" class="form-control mb-2" rows="3" required>{{ item.content }}</textarea>
+                <button type="submit" class="btn btn-sm btn-primary">Edit &amp; resubmit</button>
+            </form>
+            <form action="{{ url_for('review_delete', item_id=item.id) }}" method="POST" class="d-inline"
+                  onsubmit="return confirm('Delete this post for good?');">
+                <button type="submit" class="btn btn-sm btn-outline-danger mt-2">Delete</button>
+            </form>
+        </div>
+    </div>
+    {% else %}
+    <p class="text-muted small">Nothing is waiting for you.</p>
+    {% endfor %}
+
+    <h4 class="mt-4">History</h4>
+    <ul class="list-group mb-4">
+        {% for item in history %}
+        <li class="list-group-item small">
+            {% if item.status == 'moved' %}Moved to Chat
+            {% elif item.status == 'released' %}Released to Chat by an admin
+            {% else %}Edited and resubmitted{% endif %}
+            &middot; {{ item.created_at|datetimeformat }} &middot; because {{ item.reasons }}.
+        </li>
+        {% else %}
+        <li class="list-group-item text-muted small">No posts have been moved yet.</li>
+        {% endfor %}
+    </ul>
+
+    {% if session.get('username') == 'admin' %}
+    <h4>Admin: all held posts</h4>
+    {% for item in all_held %}
+    <div class="card mb-3">
+        <div class="card-body">
+            <p class="small mb-1"><strong>@{{ item.username }}</strong> &middot; score {{ item.score }} &middot; because {{ item.reasons }}</p>
+            <p class="mb-2">{{ item.content }}</p>
+            <form action="{{ url_for('review_release', item_id=item.id) }}" method="POST" class="d-inline">
+                <button type="submit" class="btn btn-sm btn-outline-secondary">Release to Chat</button>
+            </form>
+            <form action="{{ url_for('review_delete', item_id=item.id) }}" method="POST" class="d-inline"
+                  onsubmit="return confirm('Delete this post for good?');">
+                <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
+            </form>
+        </div>
+    </div>
+    {% else %}
+    <p class="text-muted small">No held posts.</p>
+    {% endfor %}
+    {% endif %}
+</div>
+{% endblock %}

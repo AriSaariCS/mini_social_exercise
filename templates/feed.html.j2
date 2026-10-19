@@ -14,6 +14,7 @@
       <form action="{{ url_for('add_post') }}" method="POST">
         <div class="mb-3">
           <textarea class="form-control" name="content" rows="3" placeholder="What's on your mind, {{ session.get('username') }}?" required></textarea>
+          <small class="text-muted">A post that breaks the rules is moved to a better place, not deleted. <a href="{{ url_for('review_room') }}">See moved posts</a></small>
         </div>
         <button type="submit" class="btn btn-primary float-end">Post</button>
       </form>
@@ -56,7 +57,7 @@
   </div>
    {% endif %}
 
-  
+
 </div>
 
 <div class="col-md-8 mx-auto">
@@ -75,7 +76,7 @@
           {% endif %}
         </h3>
 
-        
+
         {% if session.get('user_id') == entry.post.user_id %}
         <div class="d-flex align-items-center">
             <small class="text-muted me-3">{{ entry.post.created_at|datetimeformat }}</small>
@@ -89,7 +90,7 @@
         <small class="text-muted">{{ entry.post.created_at|datetimeformat }}</small>
         {% endif %}
       </div>
-      
+
       <p class="mt-2">{{ entry.post.content }}</p>
 
       <!-- Reactions Display and Add Reaction Button -->
@@ -171,7 +172,7 @@
               {% if comment.member_title %}<span class="badge bg-dark">{{ comment.member_title }}</span>{% endif %}
               <p class="mb-0">{{ comment.content }}</p>
             </div>
-            
+
             {% if session.get('user_id') == comment.user_id or session.get('user_id') == entry.post.user_id %}
             <form action="{{ url_for('delete_comment', comment_id=comment.id) }}" method="POST" onsubmit="return confirm('Are you sure you want to delete this comment?');">
                 <button type="submit" class="btn btn-sm btn-danger" title="Delete Comment">delete</button>
@@ -192,7 +193,7 @@
       </div>
     </div>
   </div>
-  
+
 
   <div class="modal fade" id="addCommentModal-{{ entry.post.id }}" tabindex="-1" aria-labelledby="addCommentModalLabel-{{ entry.post.id }}" aria-hidden="true">
     <div class="modal-dialog">
